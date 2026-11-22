@@ -141,6 +141,7 @@
 .monster-codex-unit b{font-size:11px;line-height:1.3;white-space:normal;word-break:keep-all;color:#f4f5fb;margin-top:3px}
 .monster-codex-unit small{font-size:10px;color:#bce8df;margin-top:4px}
 @media(max-width:720px){.monster-codex-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.monster-codex-unit img{height:74px}.monster-codex-list{max-height:58dvh}}
+.stage-card.stage-locked{filter:grayscale(.82);opacity:.50;cursor:not-allowed;box-shadow:none!important;transform:none!important}.stage-card.stage-locked .stage-card-cta{background:#30394f!important;color:#c5ccda!important;border-color:#677389!important}.stage-card.stage-locked:hover{transform:none!important}
 </style></head><body><div id="shell"><div id="field"><canvas id="game"></canvas><div id="topbar"><div id="toprow"><span id="logo">✦ MATH SURVIVORS</span><span id="clock">00:00 / 07:00</span><span id="topright"><span id="lvlabel" class="smallbtn" style="pointer-events:none">LV 1</span><button class="smallbtn" id="mute">🔊</button><button class="smallbtn" id="pause">Ⅱ</button></span></div><div id="metergroup"><div><label><span>♥ 체력</span><span id="hptext">100 / 100</span></label><div class="bar"><div id="hpfill" class="fill hpfill"></div></div></div><div><label><span>◆ 경험치</span><span id="xptext">0 / 10</span></label><div class="bar"><div id="xpfill" class="fill xpfill"></div></div></div></div></div><div id="bottomhud"><div id="cooldownHeading"><span>⏱ 장착 무기 쿨타임</span><span>발동 시간 · 재충전</span></div><div id="cooldownBoard" aria-label="장착 무기별 남은 공격 쿨타임"></div><div id="bottomrow"><div id="slotlist" class="slots"></div><div class="footerlabel" id="kills">처치 0<br>무기 1 / 6</div></div></div><div id="tip">WASD / 방향키 이동 · 모바일은 화면을 드래그</div><div id="joy"><div id="joynub"></div></div><div id="toast" class="toast"></div><div id="crowdMeter">👾 적 0/100마리 · 다음 폭주 45</div><div id="crowdAlert" role="status" aria-live="polite">⚠ 몬스터 군집 폭주!<small>주변 적들의 체력·공격력·속도가 상승합니다</small></div><div id="bossHud" aria-live="off"></div><div id="bossAlert"><div class="boss-alert-sub">⚠ 경계 경보 ⚠</div><div class="boss-alert-title">정예 보스 등장</div><div class="boss-alert-detail">위험한 적이 전장에 진입했습니다</div></div></div><div id="overlay"><div id="panel" class="panel"></div></div></div><script>
 (()=>{'use strict';
 const $=s=>document.querySelector(s),canvas=$('#game'),ctx=canvas.getContext('2d'),overlay=$('#overlay'),panel=$('#panel');
@@ -836,27 +837,30 @@ let openingFeatureIndex=0;
 let currentStage=1;
 function loadStageProgress(){try{const p=JSON.parse(localStorage.getItem(STAGE_KEY)||'{}');if(p&&typeof p==='object')return p}catch(e){}return {}}
 let stageProgress=loadStageProgress();
+// The student curriculum is sequential. Old unrestricted-run records never
+// unlock a later stage unless every previous stage was cleared.
+function nextStudentStage(p){let n=1;while(n<5&&Number((p.clears||{})[n]||0)>0)n++;return n}
 function stageProfile(){const key=activeAlias||'익명';let p=stageProgress[key];if(!p||typeof p!=='object')p={unlocked:1,clears:{},failures:{}};return {unlocked:clamp(Number(p.unlocked)||1,1,5),clears:p.clears||{},failures:p.failures||{}}}
 function saveStageProgress(){try{localStorage.setItem(STAGE_KEY,JSON.stringify(stageProgress))}catch(e){}}
 function showStageSelect(){
- state='stageSelect';const profile=stageProfile();
+ state='stageSelect';const profile=stageProfile(),unlocked=nextStudentStage(profile);
  const rares=['시간 정지 등 기본 히든 무기 4종','차원흡수','진심의 일격','광검 기동전사','엑스칼리버'];
  const cards=STAGES.map((z,i)=>{
-  const n=i+1,clears=Number(profile.clears[n]||0),failures=Number(profile.failures[n]||0);
-  return `<button type="button" class="stage-card" data-stage="${n}" aria-label="${n}단계 ${z.name} 시작">
+  const n=i+1,clears=Number(profile.clears[n]||0),failures=Number(profile.failures[n]||0),locked=n>unlocked;
+  return `<button type="button" class="stage-card${locked?' stage-locked':''}" ${locked?'disabled title="이전 스테이지를 먼저 클리어해!"':''} data-stage="${n}" aria-label="${n}단계 ${z.name} ${locked?'잠김':'시작'}">
    <span class="stage-art" data-stage-art="${n}"><span class="stage-number">${z.emoji} STAGE ${n}</span><span class="stage-mult">적 공격·체력 ${100+i*10}%</span>${n>1?`<img class="stage-monster-preview" data-monster-stage="${n}" data-monster-idx="0" alt="${z.name} 일반 몬스터"><img class="stage-monster-preview boss" data-monster-stage="${n}" data-monster-idx="5" alt="${z.boss}">`:""}</span>
    <span class="stage-card-body"><span class="stage-card-title">${z.name}</span>
    <span class="stage-card-description">${z.theme} · 7분 생존</span>
    ${STAGE_OPENING_FEATURES[n]?`<span class="stage-card-description">⚠ 시작부터 ${STAGE_OPENING_FEATURES[n].label}</span>`:''}
    <span class="stage-card-boss">☠ 보스: ${z.boss}</span>
    <span class="stage-card-rare">✨ ${n===1?'기본 히든 4종':`${n}단계 추가 무기: ${rares[i]}`}</span>
-   <span class="stage-card-clear">${clears>0?'🏆 클리어 '+clears+'회':'○ 아직 클리어하지 않음'} · 실패 ${failures}회</span>
-   <span class="stage-card-cta">▶ ${n}단계 플레이</span></span>
+   <span class="stage-card-clear">${locked?'🔒 이전 스테이지 클리어 필요':clears>0?'🏆 클리어 '+clears+'회':'○ 아직 클리어하지 않음'} · 실패 ${failures}회</span>
+   <span class="stage-card-cta">${locked?'🔒 잠김':`▶ ${n}단계 플레이`}</span></span>
   </button>`;
  }).join('');
  setOverlay(`<div class="eyebrow">CHOOSE YOUR STAGE · ${escHTML(activeAlias||'도전자')}</div><div class="heading">🗺 스테이지 선택</div>
-  <div class="sub"><b>1~5단계 모두 자유롭게 선택!</b> 순서대로 클리어하지 않아도 원하는 곳에서 바로 시작할 수 있어.<br>
-  각 스테이지는 7분이며, 적 체력·공격력은 단계마다 10%p씩 상승해.<br>후반 소환 시도: 4·5·6·7분에 초당 5·6·7·8마리 · 후반 신규 몬스터 체력 최대 +60%.</div>
+  <div class="sub"><b>학생용 순차 진행: 1 → 2 → 3 → 4 → 5단계!</b> 이전 단계를 7분 생존해 클리어하면 다음 스테이지가 열려.<br>
+  각 스테이지는 7분이며, 적 체력·공격력은 단계마다 10%p씩 상승해.<br>후반 소환 시도: 4·5·6·7분에 초당 4·5·6·7마리 · 후반 신규 몬스터 체력 최대 +60%.</div>
   <div class="stage-choices">${cards}</div>
   <div class="tiny">각 스테이지의 클리어·실패 기록은 별명별로 저장돼. 3·5·7분 생존 시 영구 성장 포인트 획득 · 높은 단계에서는 더 많은 히든 무기가 등장해.</div>
   <button class="cta alt" id="stageBestiary">👾 몬스터 도감 · 24종 모델 보기</button><button class="cta alt" id="stageGuide">📖 게임·무기 설명</button><button class="cta alt" id="stageBack">← 도전자 이름 변경</button><button class="cta alt" id="stageMenu">⌂ 메인 메뉴</button>`);
@@ -866,7 +870,7 @@ function showStageSelect(){
  });
  panel.querySelectorAll('[data-monster-stage]').forEach(el=>{el.src=STAGE_MONSTER_URLS[el.dataset.monsterStage]?.[Number(el.dataset.monsterIdx)]||''});
  panel.querySelectorAll('[data-stage]').forEach(el=>el.onclick=()=>{
-  currentStage=Number(el.dataset.stage);masterMode=false;eventMode=true;chooseStarter();
+  const n=Number(el.dataset.stage);if(n>nextStudentStage(stageProfile())){say('🔒 이전 스테이지를 먼저 클리어해!');return;}currentStage=n;masterMode=false;eventMode=true;chooseStarter();
  });
  $('#stageBestiary').onclick=showMonsterGallery;$('#stageGuide').onclick=()=>showGuide('stage');$('#stageBack').onclick=showPlayerSelect;$('#stageMenu').onclick=menu;
 }
@@ -910,7 +914,7 @@ const STAGE_ART={};for(const [k,url] of Object.entries(STAGE_BACKGROUNDS)){const
 
 function showPlayerSelect(){
  state='playerSelect';
- setOverlay(`<div class="eyebrow">PLAYER PROFILE · STAGE PROGRESS</div><div class="heading">🎓 도전자 등록</div><div class="sub">7분씩 5개 스테이지에 도전해. 원하는 스테이지를 자유롭게 선택해. 별명마다 클리어·실패 기록이 저장돼.</div><div class="profile-row"><input id="profileName" maxlength="16" placeholder="별명 입력 (16자 이내)" value="${escHTML(activeAlias)}" autocomplete="off" aria-label="도전자 별명"><button id="profileContinue" class="cta">▶ 스테이지 선택</button></div><div class="tiny">기록은 현재 브라우저에만 저장돼.</div><button id="profileRanks" class="cta alt">🏆 스테이지 기록</button><button id="profileBack" class="cta alt">← 메인 메뉴</button>`);
+ setOverlay(`<div class="eyebrow">PLAYER PROFILE · STAGE PROGRESS</div><div class="heading">🎓 도전자 등록</div><div class="sub">7분씩 5개 스테이지에 도전해. 1스테이지부터 클리어하며 다음 단계를 해금해. 별명마다 클리어·실패 기록이 저장돼.</div><div class="profile-row"><input id="profileName" maxlength="16" placeholder="별명 입력 (16자 이내)" value="${escHTML(activeAlias)}" autocomplete="off" aria-label="도전자 별명"><button id="profileContinue" class="cta">▶ 스테이지 선택</button></div><div class="tiny">기록은 현재 브라우저에만 저장돼.</div><button id="profileRanks" class="cta alt">🏆 스테이지 기록</button><button id="profileBack" class="cta alt">← 메인 메뉴</button>`);
  $('#profileContinue').onclick=()=>{if(!setActiveAlias($('#profileName').value)){say('별명을 입력해 줘!');$('#profileName').focus();return}masterMode=false;eventMode=true;showStageSelect()};
  $('#profileName').onkeydown=e=>{if(e.key==='Enter')$('#profileContinue').click()};
  $('#profileRanks').onclick=showStageRecords;$('#profileBack').onclick=menu;
@@ -1125,9 +1129,9 @@ function showSoundLab(){
 
 function menu(){
  state='menu';masterMode=false;eventMode=true;finalBossMode=false;$('#bossHud').style.display='none';$('#bossAlert').classList.remove('show');$('#crowdAlert').classList.remove('show');$('#crowdMeter').style.display='none';
- setOverlay(`<div class="eyebrow">MATH SURVIVORS v7.13 · 7분 × 5개 스테이지</div>
+ setOverlay(`<div class="eyebrow">MATH SURVIVORS v7.16 학생용 · 7분 × 5개 스테이지</div>
  <div class="heading">MATH<br><span style="color:#7bf1c1">SURVIVORS</span></div>
- <div class="sub"><b>7분 생존 → 해당 스테이지 클리어!</b><br>5개 맵의 적·보스·공격 패턴이 달라져. 스테이지 2~5 몬스터 24종 모델링 적용!</div>
+ <div class="sub"><b>7분 생존 → 해당 스테이지 클리어!</b><br>1단계부터 순서대로 클리어해 다음 맵을 해금하자! 5개 맵의 적·보스·공격 패턴이 달라져. 스테이지 2~5 몬스터 24종 모델링 적용!</div>
  <div class="details">🏫 앞마당 → 📚 도서관 → 🪨 골렘의 숲 → 🌋 화염의 요새 → 👽 차원의 틈<br>
  ⚔️ 일반 무기 14종 + 스테이지별 히든 무기 8종<br>
  💥 수정 골렘 사망 후 범위 공격 / 화염 경고 마법진 / 외계인 순간이동 공격<br>
@@ -1138,13 +1142,13 @@ function menu(){
  🎲 3분마다 도박 이벤트 · 전설 무기 선택 보상 2%<br>
  💚 체력 절반 이하면 수학 문제 · 30초 쿨타임 · 정답 시 20HP 회복<br>
  🧬 영구 성장 3·5·7분에 각 1P · 별명별 클리어 기록 저장</div>
- <button class="cta" id="newrun">▶ 스테이지 선택하고 플레이</button>
+ <button class="cta" id="newrun">▶ 1단계부터 순서대로 플레이</button>
  <button class="cta alt" id="guideOpen">📖 게임 규칙 · 무기 22종 설명</button>
  <button class="cta alt" id="labOpen">🧪 리얼 사운드 실험실 · 모든 무기/필살기</button>
  <button class="cta alt" id="soundRestore">🔊 소리 테스트 · 복구</button>
  <button class="cta alt" id="recordsOpen">🏆 스테이지 기록</button>
  <button class="cta alt" id="metaOpen">🧬 영구 성장 · ${meta.points}P</button>
- <div class="tiny" style="margin-top:12px">🎮 WASD·방향키 / 모바일 드래그 · 🔊 버튼으로 소리 끄기 · 🧪 실험실에서 무기 소리 미리 듣기</div>`);
+ <div class="tiny" style="margin-top:12px">🎮 학생용 1→2→3→4→5 단계별 해금 · WASD·방향키 / 모바일 드래그 · 🔊 버튼으로 소리 끄기 · 🧪 실험실에서 무기 소리 미리 듣기</div>`);
  $('#newrun').onclick=()=>{masterMode=false;eventMode=true;showPlayerSelect()};
  $('#guideOpen').onclick=()=>showGuide('menu');$('#labOpen').onclick=showSoundLab;$('#soundRestore').onclick=restoreSoundNow;
  $('#metaOpen').onclick=showMeta;$('#recordsOpen').onclick=showStageRecords;
@@ -1164,7 +1168,7 @@ function showGuide(back='menu'){
  };
  const passives=Object.values(PASSIVES).map(p=>`<div class="guide-weapon"><span class="guide-icon">${p.i}</span><div><b>${p.n} · 최대 Lv.${p.max}</b><small>${p.desc}</small></div></div>`).join('');
  setOverlay(`<div class="eyebrow">GAME GUIDE · 학생용 게임 설명서</div><div class="heading">📖 게임 안내</div>
-  <div class="guide-banner"><b>목표:</b> 원하는 스테이지에서 7분 생존! 몬스터를 쓰러뜨리고 보석을 주워 레벨업해.<br>
+  <div class="guide-banner"><b>목표:</b> 1단계부터 순서대로 각 스테이지에서 7분 생존! 몬스터를 쓰러뜨리고 보석을 주워 레벨업해.<br>
   <b>무기:</b> 한 판에 최대 6종 / 보조 아이템 최대 6종 · 무기는 Lv.8까지 강화 가능. 공격 무기는 발동 간격 +25%, 기본 위력 +35%(포탑 별도 상향), 방패의 방어 주기는 유지.<br>
   <b>성장:</b> 3·5·7분 생존하면 영구 성장 포인트 1개씩. 스테이지별 적 체력·공격력은 100~140%.<br>
   <b>군집 폭주:</b> 화면의 몬스터가 45·80·95마리에 도달하면 ⚠ 경고가 뜨고 일반 적 체력·공격력·속도가 단계적으로 증가해. 몬스터 수가 줄어들면 즉시 낮은 단계로 돌아가고, 45마리 미만이면 폭주가 해제돼. 보스 포함 100마리가 최대치야.<br>
@@ -1660,16 +1664,33 @@ function stageBossSkillTick(m,dt,d,a,enemyBullets,bulletLimit){
  return enemyBullets;
 }
 
-function putFx(x,y,color,n=8,spd=85){if(adaptiveGraphics&&n>6)n=Math.max(4,Math.round(n*.54));for(let j=0;j<n;j++){let a=rand(0,TAU),v=rand(spd*.3,spd);fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:rand(.22,.65),max:.65,c:color,r:rand(1,4)})}if(fx.length>(adaptiveGraphics?230:380))fx.splice(0,fx.length-(adaptiveGraphics?230:380))}
+function putFx(x,y,color,n=8,spd=85){
+ // Crowd-pressure cap applies only to decoration, not combat or hits.
+ if((adaptiveGraphics||(monsters.length>=78&&(shots.length>=12||fx.length>90)))&&n>6)
+  n=Math.max(4,Math.round(n*.55));for(let j=0;j<n;j++){let a=rand(0,TAU),v=rand(spd*.3,spd);fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:rand(.22,.65),max:.65,c:color,r:rand(1,4)})}if(fx.length>(adaptiveGraphics?230:380))fx.splice(0,fx.length-(adaptiveGraphics?230:380))}
 function hit(m,d,kind='normal'){
  if(!m||m.hp<=0)return;
  const crit=kind!=='dot'&&Math.random()<(.05+.1*plevel('clover')+.02*metaLv('crit'));
- const rawDamage=(d*dmgMult()+(kind==='dot'?0:metaLv('power')))*(crit?1.6:1);const damage=kind==='dot'?Math.max(0,rawDamage):Math.max(1,rawDamage);if(m.finalBoss){finalBossDamage+=damage;finalBossHits++;m.hp=Infinity}else if(m.labDummy){m.hp=m.max;labStats.total+=damage;labStats.hits++;labStats.crits+=crit?1:0;labStats.maxHit=Math.max(labStats.maxHit,damage);labStats.events.push({t:time,d:damage})}else m.hp-=damage;m.hit=.19;m.flash=(m.flash||0)+.13;
+ const rawDamage=(d*dmgMult()+(kind==='dot'?0:metaLv('power')))*(crit?1.6:1);const damage=kind==='dot'?Math.max(0,rawDamage):Math.max(1,rawDamage);if(m.finalBoss){finalBossDamage+=damage;finalBossHits++;m.hp=Infinity}else if(m.labDummy){m.hp=m.max;labStats.total+=damage;labStats.hits++;labStats.crits+=crit?1:0;labStats.maxHit=Math.max(labStats.maxHit,damage);labStats.events.push({t:time,d:damage})}else m.hp-=damage;if(kind!=='dot'){m.hit=.19;m.flash=(m.flash||0)+.13;}
  const showNumber=damage>=1&&(kind!=='dot'||time-(m.lastDotNumber??-999)>=.32);
  if(showNumber){
    m.lastDotNumber=time;
-   damageNums.push({x:m.x+rand(-10,10),y:m.y-14+rand(-4,4),v:String(Math.max(1,Math.round(damage))),t:crit?.94:.70,max:crit?.94:.70,crit,color:crit?'#ffeb73':kind==='dot'?'#94ef9f':'#f5faff'});
-   if(damageNums.length>175)damageNums.splice(0,damageNums.length-175);
+   // Combine rapid hits on the SAME monster into one readable number in busy fights.
+   // This is display-only; HP, critical damage and attack timing are unchanged.
+   const busy=monsters.length>=65&&(shots.length>=10||fx.length>=65||damageNums.length>=55);
+   const prev=m.lastNumberFx;
+   if(busy&&!crit&&kind!=='dot'&&prev&&!prev.crit&&prev.t>.28&&time-(m.lastNumberAt??-1e6)<.15){
+    prev.acc=(prev.acc??Number(prev.v))+damage;
+    prev.v=String(Math.max(1,Math.round(prev.acc)));
+    prev.t=Math.max(prev.t,.53);
+    m.lastNumberAt=time;
+   }else{
+    const num={x:m.x+rand(-10,10),y:m.y-14+rand(-4,4),v:String(Math.max(1,Math.round(damage))),acc:damage,t:crit?.94:.70,max:crit?.94:.70,crit,color:crit?'#ffeb73':kind==='dot'?'#94ef9f':'#f5faff'};
+    damageNums.push(num);
+    m.lastNumberFx=num;m.lastNumberAt=time;
+    const limit=busy?130:175;
+    if(damageNums.length>limit)damageNums.splice(0,damageNums.length-limit);
+   }
  }
  if(crit){
    fx.push({kind:'critBurst',x:m.x,y:m.y,r:27+Math.min(25,damage*.23),c:'#ffdf71',t:.46,max:.46});
@@ -1905,20 +1926,23 @@ function voidBoundaryBurst(s,dt){
 }
 
 const SHOT_GRID_SIZE=110;
+const shotGridBuckets=new Map(),nearbyScratch=[];
 let shotCollisionGrid=null;
-const nearbyScratch=[];
 function gridMobKey(cx,cy){return (cx+256)*1024+(cy+256)}
 function rebuildShotGrid(){
- if(monsters.length<35||shots.length<14){shotCollisionGrid=null;return}
- const grid=new Map();
+ if(monsters.length<35||shots.length<10){shotCollisionGrid=null;return}
+ // Clearing the map while retaining arrays for each cell prevents bucket GC churn.
+ for(const bucket of shotGridBuckets.values())bucket.length=0;
  for(const m of monsters){if(m.hp<=0)continue;
   const key=gridMobKey(Math.floor(m.x/SHOT_GRID_SIZE),Math.floor(m.y/SHOT_GRID_SIZE));
-  let group=grid.get(key);if(!group){group=[];grid.set(key,group)}group.push(m);
+  let bucket=shotGridBuckets.get(key);
+  if(!bucket){bucket=[];shotGridBuckets.set(key,bucket)}
+  bucket.push(m);
  }
- shotCollisionGrid=grid;
+ shotCollisionGrid=shotGridBuckets;
 }
 function nearbyMonstersForShot(s){
- if(!shotCollisionGrid||s.r>95)return monsters;
+ if(!shotCollisionGrid||(s.r||0)>300)return monsters;
  nearbyScratch.length=0;
  const reach=(s.r||0)+66,minX=Math.floor((s.x-reach)/SHOT_GRID_SIZE),maxX=Math.floor((s.x+reach)/SHOT_GRID_SIZE);
  const minY=Math.floor((s.y-reach)/SHOT_GRID_SIZE),maxY=Math.floor((s.y+reach)/SHOT_GRID_SIZE);
@@ -1945,7 +1969,7 @@ if(s.kind==='excaliburCharge'){
   shots.splice(i,1);
  }
  continue;
-}if(s.kind==='voidOrb'&&s.life>0)voidBoundaryBurst(s,dt);if(s.fireFlash>0)s.fireFlash=Math.max(0,s.fireFlash-dt);if(s.kind==='voidOrb'&&s.life<=0){for(const m of monsters)if(m.hp>0&&dist(m,s)<s.r*2.5+m.r)hit(m,s.d*1.15);fx.push({kind:'voidBurst',x:s.x,y:s.y,r:s.r*3,c:'#b64fff',lv:s.lv||1,t:.60,max:.60});putFx(s.x,s.y,'#c879ff',33,240);screenShake=Math.max(7,screenShake);cinematicExtra('voidBurst',s.lv||1,.45)}else if(s.kind==='cloud'){s.tick-=dt;if(s.tick<=0){s.tick=.55;for(let m of monsters)if(dist(m,s)<s.r){if(time-(m.cloudWindow??-999)>.48){m.cloudWindow=time;m.cloudHits=0}if((m.cloudHits||0)<2){const strength=(m.cloudHits||0)===0?1:.45;m.cloudHits=(m.cloudHits||0)+1;hit(m,s.d*.58*strength,'dot')}m.poison=Math.max(m.poison,2)}}}else if(s.kind==='meteor'){if(s.life<=0){for(let m of monsters)if(dist(m,s)<s.r+m.r){let n=s.volley===undefined?0:(m.meteorVolley===s.volley?(m.meteorVolleyHits||0):0);hit(m,s.d*(s.volley===undefined?1:n===0?1:n===1?.30:.12));if(s.volley!==undefined){m.meteorVolley=s.volley;m.meteorVolleyHits=n+1}}putFx(s.x,s.y,'#ffb15c',Math.min(46,15+(s.lv||1)*3),240);fx.push({kind:'meteorImpact',x:s.x,y:s.y,c:'#ffb36a',r:s.r*.75,lv:s.lv||1,evo:!!s.evo,t:.43,max:.43});screenShake=5+(s.lv||1)*.45;if(s.poison)shots.push({kind:'cloud',x:s.x,y:s.y,r:s.r*.9,d:s.d*.28,life:5,tick:0});cinematicExtra('meteorImpact',s.lv||1,.47)}}else if(s.kind==='turret'){s.tick-=dt;if(s.tick<=0){s.tick=Math.max(.32,Math.max(.45,1.01-.07*(s.lv||1))*(s.evo?.88:1)*coolMult());let m=nearest(s,310);if(m){let a=Math.atan2(m.y-s.y,m.x-s.x);s.ang=a;s.fireFlash=.14;const cnt=1+amount();for(let j=0;j<cnt;j++){const side=(j-(cnt-1)/2)*13,sx=s.x-Math.sin(a)*side,sy=s.y+Math.cos(a)*side,aim=Math.atan2(m.y-sy,m.x-sx);fireShot(sx,sy,Math.cos(aim)*440,Math.sin(aim)*440,4,s.d,'turretBullet',2,{lv:s.lv||1,evo:!!s.evo})}if((s.lv||1)>=5&&Math.random()<.14)fx.push({kind:'muzzle',x:s.x+Math.cos(a)*30,y:s.y+Math.sin(a)*30,ang:a,lv:s.lv,evo:s.evo,t:.10,max:.10});if(time-(realSfxLast.turretShot??-999)>.27){realSfxLast.turretShot=time;cinematicPlay('gunCinematic',.14,1.18)}}}}else if(s.kind==='trap'){for(let m of monsters){if(m.hp<=0||dist(m,s)>s.r+m.r)continue;for(let e of monsters)if(e.hp>0&&dist(e,s)<s.r*(s.evo?1.45:1.8)){hit(e,s.d);e.ice=Math.max(e.ice,1.25)}putFx(s.x,s.y,'#ffb468',18);fx.push({kind:'trapBlast',x:s.x,y:s.y,r:s.r,lv:s.lv||1,evo:!!s.evo,c:'#ffd58b',t:.30,max:.30});s.life=-1;cinematicExtra('trapBlast',s.lv||1,.43);break}}else{if(s.kind==='enemy'){
+}if(s.kind==='voidOrb'&&s.life>0)voidBoundaryBurst(s,dt);if(s.fireFlash>0)s.fireFlash=Math.max(0,s.fireFlash-dt);if(s.kind==='voidOrb'&&s.life<=0){for(const m of monsters)if(m.hp>0&&dist(m,s)<s.r*2.5+m.r)hit(m,s.d*1.15);fx.push({kind:'voidBurst',x:s.x,y:s.y,r:s.r*3,c:'#b64fff',lv:s.lv||1,t:.60,max:.60});putFx(s.x,s.y,'#c879ff',33,240);screenShake=Math.max(7,screenShake);cinematicExtra('voidBurst',s.lv||1,.45)}else if(s.kind==='cloud'){s.tick-=dt;if(s.tick<=0){s.tick=.55;for(let m of nearbyMonstersForShot(s))if(dist(m,s)<s.r){if(time-(m.cloudWindow??-999)>.48){m.cloudWindow=time;m.cloudHits=0}if((m.cloudHits||0)<2){const strength=(m.cloudHits||0)===0?1:.45;m.cloudHits=(m.cloudHits||0)+1;hit(m,s.d*.58*strength,'dot')}m.poison=Math.max(m.poison,2)}}}else if(s.kind==='meteor'){if(s.life<=0){for(let m of nearbyMonstersForShot(s))if(dist(m,s)<s.r+m.r){let n=s.volley===undefined?0:(m.meteorVolley===s.volley?(m.meteorVolleyHits||0):0);hit(m,s.d*(s.volley===undefined?1:n===0?1:n===1?.30:.12));if(s.volley!==undefined){m.meteorVolley=s.volley;m.meteorVolleyHits=n+1}}putFx(s.x,s.y,'#ffb15c',Math.min(14,6+(s.lv||1)),200);fx.push({kind:'meteorImpact',x:s.x,y:s.y,c:'#ffb36a',r:s.r*.75,lv:s.lv||1,evo:!!s.evo,t:.43,max:.43});screenShake=5+(s.lv||1)*.45;if(s.poison)shots.push({kind:'cloud',x:s.x,y:s.y,r:s.r*.9,d:s.d*.28,life:5,tick:0});cinematicExtra('meteorImpact',s.lv||1,.47)}}else if(s.kind==='turret'){s.tick-=dt;if(s.tick<=0){s.tick=Math.max(.32,Math.max(.45,1.01-.07*(s.lv||1))*(s.evo?.88:1)*coolMult());let m=nearest(s,310);if(m){let a=Math.atan2(m.y-s.y,m.x-s.x);s.ang=a;s.fireFlash=.14;const cnt=1+amount();for(let j=0;j<cnt;j++){const side=(j-(cnt-1)/2)*13,sx=s.x-Math.sin(a)*side,sy=s.y+Math.cos(a)*side,aim=Math.atan2(m.y-sy,m.x-sx);fireShot(sx,sy,Math.cos(aim)*440,Math.sin(aim)*440,4,s.d,'turretBullet',2,{lv:s.lv||1,evo:!!s.evo})}if((s.lv||1)>=5&&Math.random()<.14)fx.push({kind:'muzzle',x:s.x+Math.cos(a)*30,y:s.y+Math.sin(a)*30,ang:a,lv:s.lv,evo:s.evo,t:.10,max:.10});if(time-(realSfxLast.turretShot??-999)>.27){realSfxLast.turretShot=time;cinematicPlay('gunCinematic',.14,1.18)}}}}else if(s.kind==='trap'){for(let m of monsters){if(m.hp<=0||dist(m,s)>s.r+m.r)continue;for(let e of monsters)if(e.hp>0&&dist(e,s)<s.r*(s.evo?1.45:1.8)){hit(e,s.d);e.ice=Math.max(e.ice,1.25)}putFx(s.x,s.y,'#ffb468',18);fx.push({kind:'trapBlast',x:s.x,y:s.y,r:s.r,lv:s.lv||1,evo:!!s.evo,c:'#ffd58b',t:.30,max:.30});s.life=-1;cinematicExtra('trapBlast',s.lv||1,.43);break}}else{if(s.kind==='enemy'){
  const oldX=s.x,oldY=s.y;
  s.x+=s.vx*dt;s.y+=s.vy*dt;
  // Second swept-path check is a guard even if this shot was spawned during the frame.
@@ -2109,6 +2133,7 @@ function vfxGlowBurst(x,y,r,count,color,spin=0){
  ctx.restore();
 }
 function drawEnhancedShot(s,cam){
+ if(s.kind==='cloud'||s.kind==='meteor')return;
  if(s.kind==='enemy'||!s.lv||s.lv<2)return;
  const lv=s.lv,tier=weaponTier(lv),x=s.x-cam.x,y=s.y-cam.y;
  if(x<-130||y<-130||x>W+130||y>H+130)return;
@@ -2170,6 +2195,7 @@ function drawEnhancedShot(s,cam){
  ctx.restore();
 }
 function drawEnhancedFx(f,cam){
+ if(f.kind==='meteorImpact')return;
  if(f.kind==='particle'||f.kind==='critBurst')return;
  const lv=f.lv||1,tier=weaponTier(lv),alpha=clamp((f.t??.2)/(f.max??.35),0,1),x=f.x-cam.x,y=f.y-cam.y;
  if(x<-200||y<-200||x>W+200||y>H+200)return;
@@ -2277,6 +2303,15 @@ function drawEnhancedFx(f,cam){
  ctx.restore();
 }
 
+let _cachedStageVignette=null,_cachedVignetteW=0,_cachedVignetteH=0;
+function stageVignette(){
+ if(!_cachedStageVignette||_cachedVignetteW!==W||_cachedVignetteH!==H){
+  _cachedVignetteW=W;_cachedVignetteH=H;
+  const g=ctx.createRadialGradient(W*.5,H*.49,Math.min(W,H)*.25,W*.5,H*.50,Math.max(W,H)*.8);
+  g.addColorStop(0,'#060c1400');g.addColorStop(1,'#07071066');_cachedStageVignette=g;
+ }
+ return _cachedStageVignette;
+}
 function drawMap(cam,phase){
  if(finalBossMode){drawBossArena();return}
  const back=currentStage===1?ART.bg:STAGE_ART[currentStage],x=WORLD.x0-cam.x,y=WORLD.y0-cam.y;
@@ -2284,8 +2319,8 @@ function drawMap(cam,phase){
  ctx.save();ctx.beginPath();ctx.rect(x,y,BACKGROUND_W,BACKGROUND_H);ctx.clip();
  if(back?.complete&&back.naturalWidth)ctx.drawImage(back,x,y,BACKGROUND_W,BACKGROUND_H);
  else {ctx.fillStyle=['#5b6065','#282942','#264d3c','#632f2f','#2c235d'][currentStage-1];ctx.fillRect(x,y,BACKGROUND_W,BACKGROUND_H)}
- const vign=ctx.createRadialGradient(W*.5,H*.49,Math.min(W,H)*.25,W*.5,H*.50,Math.max(W,H)*.8);
- vign.addColorStop(0,'#060c1400');vign.addColorStop(1,'#07071066');ctx.fillStyle=vign;ctx.fillRect(x,y,BACKGROUND_W,BACKGROUND_H);
+ // Vignette depends on viewport size, not the player: cache its shader.
+ const vign=stageVignette();ctx.fillStyle=vign;ctx.fillRect(x,y,BACKGROUND_W,BACKGROUND_H);
  ctx.restore();drawWorldWalls(cam);
 }
 
@@ -2578,7 +2613,7 @@ function drawPaintedMonster(m,x,y){
  ctx.globalAlpha=.48;ctx.fillStyle='#071223';ctx.beginPath();
  ctx.ellipse(0,6+Math.max(2,m.r*.20),Math.max(12,m.r*.82),Math.max(3,m.r*.23),0,0,TAU);ctx.fill();ctx.globalAlpha=1;
  if(elite){ctx.shadowColor=m.stage===4?'#ff9a38':m.stage===5?'#ab64fa':m.stage===3?'#69cffe':'#a888ff';ctx.shadowBlur=adaptiveGraphics?0:8;}
- if(!adaptiveGraphics){if(m.ice>0)ctx.filter='saturate(.65) brightness(1.4) hue-rotate(150deg)';else if(m.hit>0)ctx.filter='brightness(1.4)';}
+ if(!adaptiveGraphics&&!renderLiteFx){if(m.ice>0)ctx.filter='saturate(.65) brightness(1.4) hue-rotate(150deg)';else if(m.hit>0)ctx.filter='brightness(1.4)';}
  // Some ghosts float; stone golems visually anchor to the ground.
  ctx.drawImage(im,-iw/2,-ih*.72,iw,ih);
  ctx.restore();
@@ -2608,8 +2643,10 @@ function monsterDraw(m,x,y){
  ctx.fillStyle='#11121e68';ctx.beginPath();ctx.ellipse(0,size*.23,size*.35,size*.1,0,0,TAU);ctx.fill();
  if(im?.complete&&im.naturalWidth){
   ctx.shadowColor=isBoss?'#c35cff':m.type==='slime'?'#983dcb':'#142037';ctx.shadowBlur=isBoss?19:(monsters.length>120?0:4);
-  if(m.ice>0)ctx.filter='hue-rotate(160deg) saturate(1.5) brightness(1.3)';
-  else if(m.hit>0)ctx.filter='brightness(1.8) saturate(0.7)';
+  if(!renderLiteFx){
+   if(m.ice>0)ctx.filter='hue-rotate(160deg) saturate(1.5) brightness(1.3)';
+   else if(m.hit>0)ctx.filter='brightness(1.8) saturate(0.7)';
+  }
   if(m.type==='mage')ctx.filter='hue-rotate(35deg) brightness(.85)';if(m.type==='archer')ctx.filter='sepia(.5) brightness(1.06)';if(m.type==='wisp')ctx.filter='hue-rotate(155deg) brightness(1.35) saturate(1.3)';if(m.type==='golem')ctx.filter='grayscale(.75) contrast(1.35)';if(m.type==='seer')ctx.filter='hue-rotate(245deg) brightness(1.13)';if(m.stage>1&&!m.ice&&!m.hit){const hues=[0,165,94,314,228];ctx.filter=`hue-rotate(${hues[m.stage-1]}deg) saturate(1.12)`}
   const ih=size*im.naturalHeight/im.naturalWidth;ctx.drawImage(im,-size*.5,-ih*.78,size,ih);
   ctx.filter='none';
@@ -2767,13 +2804,124 @@ function drawCrimsonEye(r,theta=0){
  ctx.bezierCurveTo(-r*.71,-r*.95,r*.71,-r*.95,r*1.40,0);ctx.stroke();
  ctx.restore();
 }
+
+// v7.15: Memoized artwork for the expensive multi-layer spell effects.
+// Damage, hit radius, and timing remain in the simulation; these are visual-only replacements.
+const FAST_SPELL_ART=new Map();
+function fastSpellSprite(kind,lv,evo){
+ const key=kind+':'+lv+':'+(evo?1:0);
+ let c=FAST_SPELL_ART.get(key);if(c)return c;
+ c=document.createElement('canvas');c.width=240;c.height=240;
+ const g=c.getContext('2d');if(!g)return null;
+ g.translate(120,120);
+ if(kind==='cloud'){
+  const gold=lv>=7||evo,gr=g.createRadialGradient(0,0,7,0,0,107);
+  gr.addColorStop(0,gold?'#dffff2cb':'#ceffc6bc');
+  gr.addColorStop(.26,gold?'#baf876c4':'#96f3b1af');
+  gr.addColorStop(.68,gold?'#36966e9f':'#39876f8c');
+  gr.addColorStop(1,'#114e3100');
+  g.fillStyle=gr;g.beginPath();g.arc(0,0,107,0,Math.PI*2);g.fill();
+  // Detailed cloud silhouette rendered ONCE rather than dozens of live radial gradients per frame.
+  const n=7;
+  for(let j=0;j<n;j++){
+   const a=j*Math.PI*2/n+lv*.16,px=Math.cos(a)*(35+(j%2)*15),py=Math.sin(a)*(24+(j%3)*9);
+   const mist=g.createRadialGradient(px,py,1,px,py,31+lv*.6);
+   mist.addColorStop(0,j%2?'#b7ff9b8c':'#ceffc67a');mist.addColorStop(1,'#7aff9c00');
+   g.fillStyle=mist;g.beginPath();g.ellipse(px,py,31+lv*.6,23+lv*.8,a,0,Math.PI*2);g.fill();
+  }
+  g.strokeStyle=gold?'#d6ff9db5':'#9bfbb99a';g.lineWidth=lv>=6?3.2:2;
+  for(let j=0;j<3;j++){const a=j*Math.PI*2/3+lv*.12;g.beginPath();g.arc(0,0,45+j*16,a,a+.74);g.stroke()}
+  for(let j=0;j<8;j++){
+   const a=j*Math.PI*2/8,dist=44+(j%3)*9,xx=Math.cos(a)*dist,yy=Math.sin(a)*dist;
+   g.fillStyle=j%2?'#fffdb2b9':'#a8ffc5ac';g.beginPath();g.arc(xx,yy,2.4+(j%3),0,Math.PI*2);g.fill();
+  }
+  if(lv>=7){g.textAlign='center';g.textBaseline='middle';g.font='bold 51px system-ui';g.fillStyle='#245543a8';g.fillText('☣',0,5)}
+ } else if(kind==='meteor'){
+  const r=52+Math.min(8,lv*.9);
+  const heat=g.createRadialGradient(0,0,10,0,0,98);
+  heat.addColorStop(0,'#fff5bccc');heat.addColorStop(.35,'#ffb451a8');heat.addColorStop(.70,'#ed673958');heat.addColorStop(1,'#c63c1600');
+  g.fillStyle=heat;g.beginPath();g.arc(0,0,98,0,Math.PI*2);g.fill();
+  for(let j=0;j<12;j++){
+   const a=j*Math.PI/6,p=54+(j%3)*5;
+   g.strokeStyle=j%2?'#ffe18db6':'#fa7738ad';g.lineWidth=6+(j%3)*2;
+   g.beginPath();g.moveTo(Math.cos(a)*r*.77,Math.sin(a)*r*.77);
+   g.lineTo(Math.cos(a+.14)*p*1.27,Math.sin(a+.14)*p*1.27);g.stroke();
+  }
+  g.fillStyle=lv>=6?'#813e38':'#6a4841';g.strokeStyle='#ffd080';g.lineWidth=3;
+  g.beginPath();const pts=[[-29,-37],[12,-47],[40,-21],[44,17],[13,43],[-32,31],[-47,-12]];
+  pts.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();g.fill();g.stroke();
+  g.fillStyle='#f6a55a';g.beginPath();g.moveTo(-21,-31);g.lineTo(9,-39);g.lineTo(28,-12);g.lineTo(-7,3);g.closePath();g.fill();
+  g.strokeStyle='#ffdb80';g.lineWidth=4;
+  g.beginPath();g.moveTo(19,5);g.lineTo(0,25);g.lineTo(-17,12);g.stroke();
+  for(let j=0;j<7;j++){const a=j*2.2;g.fillStyle='#fff4ba';g.beginPath();g.arc(Math.cos(a)*51,Math.sin(a)*47,2.2+j%3,0,Math.PI*2);g.fill()}
+ }
+ FAST_SPELL_ART.set(key,c);return c;
+}
+function fastPoisonVisual(s,x,y){
+ const lv=s.lv||1,im=fastSpellSprite('cloud',lv,!!s.evo),r=s.r;
+ if(!im)return;
+ const alpha=.90+.045*Math.sin(time*1.2+s.x*.015);
+ ctx.save();ctx.globalAlpha=alpha;
+ ctx.drawImage(im,x-r*1.11,y-r*1.11,r*2.22,r*2.22);
+ // Two moving live highlights provide animation at negligible paint cost.
+ ctx.strokeStyle=lv>=7?'#c8ffb3b0':'#8af2bca0';ctx.lineWidth=1.6;
+ for(let j=0;j<2;j++){const a=time*.55+j*Math.PI;ctx.beginPath();ctx.arc(x,y,r*(.63+j*.07),a,a+.5);ctx.stroke()}
+ ctx.restore();
+}
+function fastMeteorVisual(s,x,y){
+ const lv=s.lv||1,tier=weaponTier(lv),e=!!s.evo;
+ const age=clamp(1-s.life/(s.totalLife||.9),0,1),fall=1-(1-age)*(1-age);
+ const mx=x-55*(1-fall),my=y-(165+40*tier)*(1-fall);
+ const im=fastSpellSprite('meteor',lv,e),sz=115+lv*5+(e?15:0);
+ ctx.save();
+ ctx.strokeStyle=tier>=3?'#ffcf9cb5':'#ff9b6b8a';ctx.lineWidth=2;
+ ctx.setLineDash([7,9]);ctx.beginPath();ctx.arc(x,y,s.r,0,TAU);ctx.stroke();ctx.setLineDash([]);
+ ctx.fillStyle=`rgba(255,108,47,${(.06+age*.13).toFixed(3)})`;
+ ctx.beginPath();ctx.arc(x,y,s.r*(.60+age*.4),0,TAU);ctx.fill();
+ // A simplified fiery streak replaces gradients and dozens of blurred particles each frame.
+ ctx.fillStyle='#ff763b74';ctx.beginPath();ctx.moveTo(mx-12,my-14);ctx.lineTo(mx-65-tier*6,my-80-tier*7);ctx.lineTo(mx+16,my-11);ctx.closePath();ctx.fill();
+ if(im){ctx.translate(mx,my);ctx.rotate(time*.9);ctx.drawImage(im,-sz/2,-sz/2,sz,sz)}
+ ctx.restore();
+}
+function fastMeteorImpactVisual(f,cam){
+ const x=f.x-cam.x,y=f.y-cam.y;
+ const alpha=clamp((f.t??.3)/(f.max||.43),0,1),r=(f.r||30)*(1.15+(1-alpha)*.43);
+ ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle='#ffd278';ctx.lineWidth=5;
+ ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();
+ ctx.strokeStyle='#ff824d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,r*1.28,0,TAU);ctx.stroke();
+ const n=8;ctx.strokeStyle='#ffe9b0';ctx.lineWidth=2.5;
+ for(let j=0;j<n;j++){const a=j*TAU/n+time*.3;ctx.beginPath();ctx.moveTo(x+Math.cos(a)*r*.78,y+Math.sin(a)*r*.78);ctx.lineTo(x+Math.cos(a)*r*1.40,y+Math.sin(a)*r*1.40);ctx.stroke()}
+ ctx.restore();
+}
+// Cached red enemy bullets: eliminate shadowBlur + three individual arc draws per shot/frame.
+const enemyBulletArt=new Map();
+function fastEnemyBulletSprite(radius){
+ const r=Math.round(Math.max(1,radius)*2)/2,key=String(r);
+ let art=enemyBulletArt.get(key);if(art)return art;
+ const side=2*Math.ceil(r+18),res=2;
+ art=document.createElement('canvas');art.width=side*res;art.height=side*res;
+ const g=art.getContext('2d');
+ g.setTransform(res,0,0,res,art.width/2,art.height/2);
+ g.shadowColor='#ff1e48';g.shadowBlur=13;
+ g.fillStyle='#a80028';g.beginPath();g.arc(0,0,r+1.8,0,TAU);g.fill();
+ g.fillStyle='#ff305b';g.beginPath();g.arc(0,0,r,0,TAU);g.fill();
+ g.fillStyle='#ffa0ad';g.beginPath();g.arc(-1,-1,Math.max(1,r*.32),0,TAU);g.fill();
+ enemyBulletArt.set(key,art);
+ return art;
+}
 function drawProjectile(s,cam){
  const x=s.x-cam.x,y=s.y-cam.y;
  if(x<-190||x>W+190||y<-190||y>H+190)return;
- const lv=s.lv||1,tier=weaponTier(lv),e=!!s.evo;
+ if(s.kind==='enemy'){
+  const im=fastEnemyBulletSprite(s.r||4),size=im.width/2;
+  ctx.drawImage(im,x-size/2,y-size/2,size,size);
+  return;
+ }
+  const lv=s.lv||1,tier=weaponTier(lv),e=!!s.evo;
+  if(s.kind==='cloud'){fastPoisonVisual(s,x,y);return}
+  if(s.kind==='meteor'){fastMeteorVisual(s,x,y);return}
 
-
- if(s.kind==='gravityField'){
+  if(s.kind==='gravityField'){
   const age=clamp(1-s.life/Math.max(.15,s.totalLife),0,1),rr=s.r;
   ctx.save();ctx.translate(x,y);
   const pulse=1+.03*Math.sin(time*13),sw=time*(2.4+s.lv*.12);
@@ -3019,6 +3167,7 @@ function drawProjectile(s,cam){
  ctx.restore();
 }
 function drawWeaponEffect(f,cam){
+ if(f.kind==='meteorImpact'){fastMeteorImpactVisual(f,cam);return;}
  const x=f.x-cam.x,y=f.y-cam.y,alpha=clamp((f.t??f.l)/(f.max??.65),0,1),lv=f.lv||1,tier=weaponTier(lv),e=!!f.evo;
  ctx.save();ctx.globalAlpha=alpha;
 
@@ -3275,9 +3424,12 @@ function drawWalkingPlayer(px,py){
  ctx.restore();
 }
 
-function render(){ctx.clearRect(0,0,W,H);ctx.save();if(screenShake>0)ctx.translate(rand(-screenShake,screenShake),rand(-screenShake,screenShake));const cam=player?camera():{x:0,y:0},phase=player?phaseNumber():0,px=player?player.x-cam.x:W/2,py=player?player.y-cam.y:H/2;drawMap(cam,phase);drawGroundHazards(cam);if(time<stopUntil){ctx.fillStyle='#a8e8ff18';ctx.fillRect(0,0,W,H);ctx.save();ctx.textAlign='center';ctx.font='1000 21px system-ui';ctx.fillStyle='#fff1bb';ctx.shadowColor='#80bfff';ctx.shadowBlur=20;ctx.fillText(`⏳ TIME STOP · ${(stopUntil-time).toFixed(1)}s`,W/2,Math.min(H-85,123));ctx.restore()}
+let renderLiteFx=false;
+function render(){
+ renderLiteFx=adaptiveGraphics||(monsters.length>=72&&(shots.length>=10||fx.length>=75||damageNums.length>=65))||fx.length>=235;
+ ctx.clearRect(0,0,W,H);ctx.save();if(screenShake>0)ctx.translate(rand(-screenShake,screenShake),rand(-screenShake,screenShake));const cam=player?camera():{x:0,y:0},phase=player?phaseNumber():0,px=player?player.x-cam.x:W/2,py=player?player.y-cam.y:H/2;drawMap(cam,phase);drawGroundHazards(cam);if(time<stopUntil){ctx.fillStyle='#a8e8ff18';ctx.fillRect(0,0,W,H);ctx.save();ctx.textAlign='center';ctx.font='1000 21px system-ui';ctx.fillStyle='#fff1bb';ctx.shadowColor='#80bfff';ctx.shadowBlur=20;ctx.fillText(`⏳ TIME STOP · ${(stopUntil-time).toFixed(1)}s`,W/2,Math.min(H-85,123));ctx.restore()}
 for(let g of gems){let x=g.x-cam.x,y=g.y-cam.y;if(x<-18||x>W+18||y<-18||y>H+18)continue;ctx.save();ctx.translate(x,y+Math.sin(time*5+g.x*.02)*2);ctx.rotate(Math.PI/4);ctx.shadowColor=g.v>25?'#ffde75':'#69e4ff';ctx.shadowBlur=(adaptiveGraphics||monsters.length>75)?0:8;ctx.fillStyle=g.v>25?'#ffd77d':'#69dffc';ctx.fillRect(-g.r*.8,-g.r*.8,g.r*1.6,g.r*1.6);ctx.fillStyle='#ffffffaa';ctx.fillRect(-g.r*.5,-g.r*.5,g.r*.55,g.r*.55);ctx.restore()}
- for(let s of shots){if(s.kind!=='gravityField'){drawProjectile(s,cam);drawEnhancedShot(s,cam)}}if(finalBossMode)drawFinalBossBullets(cam);
+ for(let s of shots){if(s.kind!=='gravityField'){drawProjectile(s,cam);if(!renderLiteFx||s.kind==='voidOrb'||s.kind==='excaliburCharge')drawEnhancedShot(s,cam)}}if(finalBossMode)drawFinalBossBullets(cam);
  for(let m of monsters){let x=m.x-cam.x,y=m.y-cam.y;if(x<-120||x>W+120||y<-120||y>H+120)continue;monsterDraw(m,x,y);if(m.buffTier>0||m.surgeApplied>0){ctx.save();ctx.globalAlpha=.22+Math.min(.3,((m.buffTier||0)+(m.surgeApplied||0))*.035);ctx.strokeStyle=m.surgeApplied>0?'#ff9160':'#ffa574';ctx.lineWidth=1.1+Math.min(2,((m.buffTier||0)+(m.surgeApplied||0))*.17);ctx.beginPath();ctx.arc(x,y-3,m.r+4,0,TAU);ctx.stroke();ctx.restore()}}
 for(const sk of shots)if(sk.kind==='gravityField')drawProjectile(sk,cam);if(time<stopUntil)drawChronoGuardian();
 if(player){
@@ -3300,7 +3452,29 @@ if(player){
  if(player.inv<=0||Math.sin(time*22)>0)drawWalkingPlayer(px,py);
  // Ground shadow replaces the old bright marker beneath the player
 }
-for(let f of fx){if(f.x!==undefined&&f.y!==undefined&&(f.x-cam.x<-240||f.x-cam.x>W+240||f.y-cam.y<-240||f.y-cam.y>H+240))continue;drawWeaponEffect(f,cam);if(!adaptiveGraphics||f.kind)drawEnhancedFx(f,cam)}ctx.globalAlpha=1;for(let f of damageNums){const x=f.x-cam.x,y=f.y-cam.y;if(x<-65||x>W+65||y<-65||y>H+65)continue;ctx.save();ctx.globalAlpha=Math.min(1,2.7*f.t);ctx.textAlign='center';ctx.lineJoin='round';ctx.shadowColor=f.crit?'#f5a733':'#141629';ctx.shadowBlur=adaptiveGraphics?0:(f.crit?13:3);ctx.font=f.crit?'1000 24px system-ui':'900 16px system-ui';ctx.lineWidth=f.crit?5:3;ctx.strokeStyle='#131322e9';ctx.strokeText(f.v,x,y);ctx.fillStyle=f.color;ctx.fillText(f.v,x,y);if(f.crit){ctx.font='1000 12px system-ui';ctx.strokeText('✦ CRITICAL!',x,y-24);ctx.fillStyle='#fff4a0';ctx.fillText('✦ CRITICAL!',x,y-24)}ctx.restore()}ctx.restore()}
+for(let f of fx){if(f.x!==undefined&&f.y!==undefined&&(f.x-cam.x<-240||f.x-cam.x>W+240||f.y-cam.y<-240||f.y-cam.y>H+240))continue;drawWeaponEffect(f,cam);if(!renderLiteFx||f.kind==='excaliburBeam'||f.kind==='holySwordImpact')drawEnhancedFx(f,cam)}ctx.globalAlpha=1;
+ let ordinaryShown=0;
+ const maxOrdinary=renderLiteFx?65:120;
+ for(let i=damageNums.length-1;i>=0;i--){
+  const f=damageNums[i];
+  if(!f.crit&&ordinaryShown++>=maxOrdinary)continue;
+  const x=f.x-cam.x,y=f.y-cam.y;
+  if(x<-65||x>W+65||y<-65||y>H+65)continue;
+  ctx.save();ctx.globalAlpha=Math.min(1,2.7*f.t);ctx.textAlign='center';
+  if(renderLiteFx&&!f.crit){
+   ctx.font='900 16px system-ui';ctx.fillStyle='#131322';ctx.fillText(f.v,x+1,y+1);
+   ctx.fillStyle=f.color;ctx.fillText(f.v,x,y);
+  }else{
+   ctx.lineJoin='round';ctx.shadowColor=f.crit?'#f5a733':'#141629';
+   ctx.shadowBlur=adaptiveGraphics?0:(f.crit?13:3);
+   ctx.font=f.crit?'1000 24px system-ui':'900 16px system-ui';ctx.lineWidth=f.crit?5:3;
+   ctx.strokeStyle='#131322e9';ctx.strokeText(f.v,x,y);
+   ctx.fillStyle=f.color;ctx.fillText(f.v,x,y);
+   if(f.crit){ctx.font='1000 12px system-ui';ctx.strokeText('✦ CRITICAL!',x,y-24);ctx.fillStyle='#fff4a0';ctx.fillText('✦ CRITICAL!',x,y-24)}
+  }
+  ctx.restore();
+ }
+ ctx.restore()}
 function loop(ts){
  if(!last)last=ts;
  const elapsed=Math.min(100,ts-last);let dt=Math.min(.035,elapsed/1000);last=ts;
