@@ -183,6 +183,18 @@ Object.assign(WEAPONS,{
  mecha:{n:'광검 기동전사',icon:'🤖',type:'mecha',cd:16.5,d:32,desc:'4단계부터 등장! 전투 로봇이 적을 추격하며 쌍광선검으로 연속 참격',rare:true},
  excalibur:{n:'엑스칼리버 · 성검 광휘',icon:'🌟',type:'excalibur',cd:10.5,d:680,desc:'5단계부터 등장! 성검 휘두르기 후 황금빛 초광역 광선 발사',rare:true}
 });
+// v7.13: Fewer attack events, heavier single hits. The shield and the
+// non-damaging gravity skill remain unchanged. A turret receives its own
+// larger damage buff to offset its much slower firing cadence.
+const WEAPON_ATTACK_INTERVAL_MULT=1.25;
+const WEAPON_BASE_DAMAGE_MULT=1.35;
+for(const [key,def] of Object.entries(WEAPONS)){
+ if(key!=='shield'&&key!=='kamui'&&key!=='turret'&&def.d>0)
+  def.d=Math.round(def.d*WEAPON_BASE_DAMAGE_MULT*100)/100;
+}
+WEAPONS.turret.d=30; // previously 13; designed for fewer, harder shots
+WEAPONS.turret.desc='저속 고위력 자동포탑 · 탄환 1발의 피해 증가 · 분열 수정으로 탄환 +1발';
+WEAPONS.dagger.desc='2초 회전 후 1.5초 재충전 · 근접 공격형 단검';
 Object.assign(WEAPON_STAGES,{
  gate:['고대 황금문','차원 무기고','황금 병기군','왕의 무한 보물문','천공 황금 무기고'],
  chrono:['짧은 시간 정지','정지한 시계','무한 연타','멈춘 세계의 권능','영겁의 연타'],
@@ -264,7 +276,8 @@ const shieldLevel=()=>clamp(wlevel('shield'),1,8);
 const shieldCount=()=>shieldLevel()+1+amount()+(progress.evo.shield?1:0); // Lv.1: 2, Lv.8: 9 (before bonuses)
 const shieldActiveSeconds=()=>Number(((2+.2*(shieldLevel()-1))*durationMult()*(progress.evo.shield?1.10:1)).toFixed(3));
 const orbitActiveSeconds=k=>k==='shield'?shieldActiveSeconds():ORBIT_ACTIVE_SECONDS;
-const orbitCycleSeconds=k=>orbitActiveSeconds(k)+ORBIT_RECHARGE_SECONDS;
+const orbitRechargeSeconds=k=>k==='dagger'?1.5:ORBIT_RECHARGE_SECONDS;
+const orbitCycleSeconds=k=>orbitActiveSeconds(k)+orbitRechargeSeconds(k);
 const orbitActive=k=>wlevel(k)>0&&!hasFusion(k)&&((orbitPhases[k]||0)%orbitCycleSeconds(k))<orbitActiveSeconds(k);
 const shieldUnitsActive=()=>!!player&&orbitActive('shield');
 // Radius of the SHIELDS' ORBIT, not a collision barrier around the hero.
@@ -1112,7 +1125,7 @@ function showSoundLab(){
 
 function menu(){
  state='menu';masterMode=false;eventMode=true;finalBossMode=false;$('#bossHud').style.display='none';$('#bossAlert').classList.remove('show');$('#crowdAlert').classList.remove('show');$('#crowdMeter').style.display='none';
- setOverlay(`<div class="eyebrow">MATH SURVIVORS v7.12 · 7분 × 5개 스테이지</div>
+ setOverlay(`<div class="eyebrow">MATH SURVIVORS v7.13 · 7분 × 5개 스테이지</div>
  <div class="heading">MATH<br><span style="color:#7bf1c1">SURVIVORS</span></div>
  <div class="sub"><b>7분 생존 → 해당 스테이지 클리어!</b><br>5개 맵의 적·보스·공격 패턴이 달라져. 스테이지 2~5 몬스터 24종 모델링 적용!</div>
  <div class="details">🏫 앞마당 → 📚 도서관 → 🪨 골렘의 숲 → 🌋 화염의 요새 → 👽 차원의 틈<br>
@@ -1121,6 +1134,7 @@ function menu(){
  🛡️ 방패: 개별 방패에 닿은 탄환만 제거! 방패 사이 빈 공간은 통과 · Lv.8 지속 3.4초 / 재충전 1초<br>
  🔊 무기 22종 각각 다른 효과음 · 자색허공구체 폭발음 추가 · 강화 레벨별 변화<br>
  ⚠ 적 45·80·95마리 도달 시 군집 폭주! 100마리 제한 · 적이 줄면 강화 해제<br>
+  🎯 후반 소환량 4·5·6·7마리/초 · 공격 무기 쿨타임 +25%, 위력 +35% · 포탑 저속 고위력<br>
  🎲 3분마다 도박 이벤트 · 전설 무기 선택 보상 2%<br>
  💚 체력 절반 이하면 수학 문제 · 30초 쿨타임 · 정답 시 20HP 회복<br>
  🧬 영구 성장 3·5·7분에 각 1P · 별명별 클리어 기록 저장</div>
@@ -1145,13 +1159,13 @@ function showGuide(back='menu'){
   ${w.rare?`<span class="guide-pill">★ ${req}단계부터 · 최초 1% 등장</span>`:''}
   <small>${w.desc}</small>
   ${k==='shield'?`<small style="color:#afffe0"><b>🛡️ 공격력 0 · 각 방패 그림에 직접 부딪힌 적 탄환만 100% 제거! 궤도 전체를 막지 않으며 방패 사이 빈틈으로 탄환 통과. Lv.1 방패 2개·회전반경 62·2.0초 → Lv.8 방패 9개·회전반경 111·3.4초 · 재충전 1초 (확대 렌즈·모래시계 별도 적용)</b></small>`:''}
-  ${k==='dagger'?`<small>2초 공격 후 1초 재충전</small>`:''}
+  ${k==='dagger'?`<small>2초 공격 후 1.5초 재충전</small>`:''}
   ${ev?`<small>✨ 진화: Lv.8 + 보조 「${PASSIVES[ev[0]].n}」 보유 → 보스 상자에서 「${ev[1]}」</small>`:''}</div></div>`;
  };
  const passives=Object.values(PASSIVES).map(p=>`<div class="guide-weapon"><span class="guide-icon">${p.i}</span><div><b>${p.n} · 최대 Lv.${p.max}</b><small>${p.desc}</small></div></div>`).join('');
  setOverlay(`<div class="eyebrow">GAME GUIDE · 학생용 게임 설명서</div><div class="heading">📖 게임 안내</div>
   <div class="guide-banner"><b>목표:</b> 원하는 스테이지에서 7분 생존! 몬스터를 쓰러뜨리고 보석을 주워 레벨업해.<br>
-  <b>무기:</b> 한 판에 최대 6종 / 보조 아이템 최대 6종 · 무기는 Lv.8까지 강화 가능.<br>
+  <b>무기:</b> 한 판에 최대 6종 / 보조 아이템 최대 6종 · 무기는 Lv.8까지 강화 가능. 공격 무기는 발동 간격 +25%, 기본 위력 +35%(포탑 별도 상향), 방패의 방어 주기는 유지.<br>
   <b>성장:</b> 3·5·7분 생존하면 영구 성장 포인트 1개씩. 스테이지별 적 체력·공격력은 100~140%.<br>
   <b>군집 폭주:</b> 화면의 몬스터가 45·80·95마리에 도달하면 ⚠ 경고가 뜨고 일반 적 체력·공격력·속도가 단계적으로 증가해. 몬스터 수가 줄어들면 즉시 낮은 단계로 돌아가고, 45마리 미만이면 폭주가 해제돼. 보스 포함 100마리가 최대치야.<br>
   <b>회복:</b> 체력이 50% 이하일 때 수학 문제를 맞히면 +20HP (30초 쿨타임).<br>
@@ -1174,9 +1188,9 @@ function start(k){resetWorld();progress.w[k]=1;timers[k]=.22;masterMode=false;ev
 
 const weaponCooldownSeconds=k=>{
   const def=WEAPONS[k];if(!def||def.type==='orbit'||def.cd===0)return 0;
-  return Math.max(.12,def.cd*coolMult()*(1-.04*(wlevel(k)-1))*(progress.evo[k]?.8:1));
+  return Math.max(.12,def.cd*WEAPON_ATTACK_INTERVAL_MULT*coolMult()*(1-.04*(wlevel(k)-1))*(progress.evo[k]?.8:1));
 };
-const fusionCooldownSeconds=i=>({0:1.1,1:1.25,2:.32,3:2.0,4:.55,5:3.5}[i])*coolMult();
+const fusionCooldownSeconds=i=>({0:1.1,1:1.25,2:.32,3:2.0,4:.55,5:3.5}[i])*WEAPON_ATTACK_INTERVAL_MULT*coolMult();
 let lastCooldownUiAt=-999,lastCooldownUiItems='';
 function renderCooldownBoard(){
   const board=$('#cooldownBoard');if(!board)return;
@@ -1192,7 +1206,7 @@ function renderCooldownBoard(){
     const active=orbit&&phase<activeLength;
     const remaining=orbit?(active?activeLength-phase:cycle-phase):o.cd>0?Math.min(o.cd,Math.max(0,timers[o.key]??0)):0;
     const ready=orbit?active:o.cd===0||remaining<=.055;
-    const pct=orbit?(active?remaining/activeLength*100:(ORBIT_RECHARGE_SECONDS-remaining)/ORBIT_RECHARGE_SECONDS*100):o.cd===0?100:Math.max(0,Math.min(100,(1-remaining/o.cd)*100));
+    const pct=orbit?(active?remaining/activeLength*100:(orbitRechargeSeconds(o.key)-remaining)/orbitRechargeSeconds(o.key)*100):o.cd===0?100:Math.max(0,Math.min(100,(1-remaining/o.cd)*100));
     const label=orbit?(active?(o.key==='shield'?'방어 ':'발동 ')+remaining.toFixed(1)+'s':'쿨 '+remaining.toFixed(1)+'s'):o.cd===0?'상시':ready?'준비':remaining.toFixed(1)+'s';
     const hint=o.key==='shield'?`개별 방패 접촉 시 탄환 제거 · 방패 ${shieldCount()}개 · 회전반경 ${Math.round(shieldOrbitReach())} · 지속 ${activeLength.toFixed(1)}초 / 쿨 1초`:o.key==='dagger'?'2초 공격 / 1초 재충전':o.cd===0?'상시 공격':`기본 대기 ${(o.cd).toFixed(1)}초`;
     return `<div class="cd-card ${ready?'ready':''}" title="${o.name} Lv.${o.lv} · ${hint}"><div class="cd-header"><span class="cd-icon">${o.icon}</span><span class="cd-name">${o.name}${o.e?' ★':''}</span><span class="cd-count">${label}</span></div><div class="cd-meter"><div class="cd-fill" style="width:${pct.toFixed(1)}%"></div></div></div>`;
@@ -1480,8 +1494,8 @@ function drawGroundHazards(cam){
 // over the pre-v7.12 HP progression, for newly spawned ordinary monsters.
 function lateMonsterHpBonus(sec){return 1+clamp((sec-240)/300,0,.60)}
 function monsterHpScale(sec){const t=clamp(sec,0,600);const normal=1+t/300+1.35*Math.pow(t/600,2)+.2*Math.floor(t/180);return normal*lateMonsterHpBonus(t)}
-// With two monsters per wave after 4:00, these rates are 5 / 6 / 7 / 8 per second.
-function lateSpawnRate(sec){return 5+clamp((sec-240)/60,0,3)}
+// With two monsters per wave after 4:00, these rates are 4 / 5 / 6 / 7 per second.
+function lateSpawnRate(sec){return 4+clamp((sec-240)/60,0,3)}
 function spawnWaveInterval(sec){return sec<=180?Math.max(.34,.72/(1+sec/150)):sec<240?.34+(sec-180)*.001:2/lateSpawnRate(sec)}
 function spawnMob(forcedType=null,spawnDistance=null){
  if(!player)return;
@@ -1856,7 +1870,7 @@ else if(t==='thunder'){let n=2+Math.floor(lev/2)+amt+(e?2:0);let pool=monsters.f
 else if(t==='turret'){let n=1+(e?1:0),limit=2+Math.floor(lev/3)+(e?2:0),old=shots.filter(s=>s.kind==='turret');for(let i=0;i<Math.min(n,limit-old.length);i++){shots.push({kind:'turret',x:player.x+rand(-85,85),y:player.y+rand(-85,85),r:14+lev*1.15,d:def.d*boost*(e?1.12:1),life:(7.2+lev*.55)*durationMult()*(e?1.12:1),tick:.11,fireFlash:0,lv:lev,evo:!!e,ang:-Math.PI/2})}fx.push({kind:'summon',x:player.x,y:player.y,c:'#91e5ff',weapon:k,lv:lev,evo:!!e,r:38,t:.4,max:.4});}
 else if(t==='trap'){let n=1+Math.floor(lev/3)+amt+(e?1:0);for(let i=0;i<n;i++)shots.push({kind:'trap',x:player.x+rand(-25,25),y:player.y+rand(-25,25),r:(23+lev*3.4)*range*(e?1.30:1),d:def.d*boost*(e?1.35:1),life:15*durationMult(),lv:lev,evo:!!e});fx.push({kind:'summon',x:player.x,y:player.y,c:'#ffc886',weapon:k,lv:lev,evo:!!e,r:25,t:.36,max:.36});}
 }
-function runFusions(dt){for(let i=0;i<FUSIONS.length;i++){if(!progress.fusion[i])continue;let k=`fusion${i}`;timers[k]=(timers[k]??0)-dt;if(timers[k]>0)continue;timers[k]=fusionCooldownSeconds(i);let [a,b]=FUSIONS[i],targ=nearest(player,700),angle=targ?Math.atan2(targ.y-player.y,targ.x-player.x):rand(0,TAU);if(i===0){for(let m of monsters)if(dist(m,player)<138*radiusMult())hit(m,37*dmgMult());fx.push({kind:'slash',x:player.x,y:player.y,ang:angle,ar:TAU,reach:142,t:.32,max:.32,c:'#ffd66a',weapon:'sword',lv:8,evo:true})}else if(i===1){for(let j=0;j<6;j++){let ang=angle+(j-2.5)*.18;fireShot(player.x,player.y,Math.cos(ang)*490,Math.sin(ang)*490,5,22,'ice',2,{pierce:2,chain:true,lv:8,evo:true,weapon:'bow'})}}else if(i===2){for(let j=0;j<3;j++){let ang=angle+(j-1)*.10;fireShot(player.x,player.y,Math.cos(ang)*690,Math.sin(ang)*690,4,15,'gun',2.4,{pierce:4,trail:true,lv:8,evo:true,weapon:'gun'})}}else if(i===3){let x=targ?targ.x:player.x,y=targ?targ.y:player.y;shots.push({kind:'meteor',x,y,r:100,d:83,life:.8,totalLife:.8,poison:true,lv:8,evo:true})}else if(i===4){for(let m of monsters)if(dist(m,player)<115){hit(m,16);m.ice=Math.max(m.ice,1.1)}fx.push({kind:'ring',x:player.x,y:player.y,reach:116,t:.28,max:.28,c:'#b7f7ff',lv:8,evo:true})}else if(i===5){shots.push({kind:'turret',x:player.x+rand(-70,70),y:player.y+rand(-70,70),r:18,d:16,life:8,tick:0,lv:8,evo:true,ang:-Math.PI/2});shots.push({kind:'trap',x:player.x+rand(-95,95),y:player.y+rand(-95,95),r:45,d:41,life:12,lv:8,evo:true})}}}
+function runFusions(dt){for(let i=0;i<FUSIONS.length;i++){if(!progress.fusion[i])continue;let k=`fusion${i}`;timers[k]=(timers[k]??0)-dt;if(timers[k]>0)continue;timers[k]=fusionCooldownSeconds(i);let [a,b]=FUSIONS[i],targ=nearest(player,700),angle=targ?Math.atan2(targ.y-player.y,targ.x-player.x):rand(0,TAU);if(i===0){for(let m of monsters)if(dist(m,player)<138*radiusMult())hit(m,50*dmgMult());fx.push({kind:'slash',x:player.x,y:player.y,ang:angle,ar:TAU,reach:142,t:.32,max:.32,c:'#ffd66a',weapon:'sword',lv:8,evo:true})}else if(i===1){for(let j=0;j<6;j++){let ang=angle+(j-2.5)*.18;fireShot(player.x,player.y,Math.cos(ang)*490,Math.sin(ang)*490,5,30,'ice',2,{pierce:2,chain:true,lv:8,evo:true,weapon:'bow'})}}else if(i===2){for(let j=0;j<3;j++){let ang=angle+(j-1)*.10;fireShot(player.x,player.y,Math.cos(ang)*690,Math.sin(ang)*690,4,21,'gun',2.4,{pierce:4,trail:true,lv:8,evo:true,weapon:'gun'})}}else if(i===3){let x=targ?targ.x:player.x,y=targ?targ.y:player.y;shots.push({kind:'meteor',x,y,r:100,d:112,life:.8,totalLife:.8,poison:true,lv:8,evo:true})}else if(i===4){for(let m of monsters)if(dist(m,player)<115){hit(m,22);m.ice=Math.max(m.ice,1.1)}fx.push({kind:'ring',x:player.x,y:player.y,reach:116,t:.28,max:.28,c:'#b7f7ff',lv:8,evo:true})}else if(i===5){shots.push({kind:'turret',x:player.x+rand(-70,70),y:player.y+rand(-70,70),r:18,d:36,life:8,tick:0,lv:8,evo:true,ang:-Math.PI/2});shots.push({kind:'trap',x:player.x+rand(-95,95),y:player.y+rand(-95,95),r:45,d:55,life:12,lv:8,evo:true})}}}
 function orbitHit(dt){
  // Shields are DEFENSE ONLY: never scan/hit monsters. The projectile shield runs in shotsTick().
  const k='dagger';if(!orbitActive(k))return;
@@ -1931,7 +1945,7 @@ if(s.kind==='excaliburCharge'){
   shots.splice(i,1);
  }
  continue;
-}if(s.kind==='voidOrb'&&s.life>0)voidBoundaryBurst(s,dt);if(s.fireFlash>0)s.fireFlash=Math.max(0,s.fireFlash-dt);if(s.kind==='voidOrb'&&s.life<=0){for(const m of monsters)if(m.hp>0&&dist(m,s)<s.r*2.5+m.r)hit(m,s.d*1.15);fx.push({kind:'voidBurst',x:s.x,y:s.y,r:s.r*3,c:'#b64fff',lv:s.lv||1,t:.60,max:.60});putFx(s.x,s.y,'#c879ff',33,240);screenShake=Math.max(7,screenShake);cinematicExtra('voidBurst',s.lv||1,.45)}else if(s.kind==='cloud'){s.tick-=dt;if(s.tick<=0){s.tick=.55;for(let m of monsters)if(dist(m,s)<s.r){if(time-(m.cloudWindow??-999)>.48){m.cloudWindow=time;m.cloudHits=0}if((m.cloudHits||0)<2){const strength=(m.cloudHits||0)===0?1:.45;m.cloudHits=(m.cloudHits||0)+1;hit(m,s.d*.58*strength,'dot')}m.poison=Math.max(m.poison,2)}}}else if(s.kind==='meteor'){if(s.life<=0){for(let m of monsters)if(dist(m,s)<s.r+m.r){let n=s.volley===undefined?0:(m.meteorVolley===s.volley?(m.meteorVolleyHits||0):0);hit(m,s.d*(s.volley===undefined?1:n===0?1:n===1?.30:.12));if(s.volley!==undefined){m.meteorVolley=s.volley;m.meteorVolleyHits=n+1}}putFx(s.x,s.y,'#ffb15c',Math.min(46,15+(s.lv||1)*3),240);fx.push({kind:'meteorImpact',x:s.x,y:s.y,c:'#ffb36a',r:s.r*.75,lv:s.lv||1,evo:!!s.evo,t:.43,max:.43});screenShake=5+(s.lv||1)*.45;if(s.poison)shots.push({kind:'cloud',x:s.x,y:s.y,r:s.r*.9,d:s.d*.28,life:5,tick:0});cinematicExtra('meteorImpact',s.lv||1,.47)}}else if(s.kind==='turret'){s.tick-=dt;if(s.tick<=0){s.tick=Math.max(.18,.67-.060*(s.lv||1))*(s.evo?.88:1)*coolMult();let m=nearest(s,310);if(m){let a=Math.atan2(m.y-s.y,m.x-s.x);s.ang=a;s.fireFlash=.14;const cnt=1+amount();for(let j=0;j<cnt;j++){const side=(j-(cnt-1)/2)*13,sx=s.x-Math.sin(a)*side,sy=s.y+Math.cos(a)*side,aim=Math.atan2(m.y-sy,m.x-sx);fireShot(sx,sy,Math.cos(aim)*440,Math.sin(aim)*440,4,s.d,'turretBullet',2,{lv:s.lv||1,evo:!!s.evo})}if((s.lv||1)>=5&&Math.random()<.26)fx.push({kind:'muzzle',x:s.x+Math.cos(a)*30,y:s.y+Math.sin(a)*30,ang:a,lv:s.lv,evo:s.evo,t:.10,max:.10});if(time-(realSfxLast.turretShot??-999)>.19){realSfxLast.turretShot=time;cinematicPlay('gunCinematic',.14,1.18)}}}}else if(s.kind==='trap'){for(let m of monsters){if(m.hp<=0||dist(m,s)>s.r+m.r)continue;for(let e of monsters)if(e.hp>0&&dist(e,s)<s.r*(s.evo?1.45:1.8)){hit(e,s.d);e.ice=Math.max(e.ice,1.25)}putFx(s.x,s.y,'#ffb468',18);fx.push({kind:'trapBlast',x:s.x,y:s.y,r:s.r,lv:s.lv||1,evo:!!s.evo,c:'#ffd58b',t:.30,max:.30});s.life=-1;cinematicExtra('trapBlast',s.lv||1,.43);break}}else{if(s.kind==='enemy'){
+}if(s.kind==='voidOrb'&&s.life>0)voidBoundaryBurst(s,dt);if(s.fireFlash>0)s.fireFlash=Math.max(0,s.fireFlash-dt);if(s.kind==='voidOrb'&&s.life<=0){for(const m of monsters)if(m.hp>0&&dist(m,s)<s.r*2.5+m.r)hit(m,s.d*1.15);fx.push({kind:'voidBurst',x:s.x,y:s.y,r:s.r*3,c:'#b64fff',lv:s.lv||1,t:.60,max:.60});putFx(s.x,s.y,'#c879ff',33,240);screenShake=Math.max(7,screenShake);cinematicExtra('voidBurst',s.lv||1,.45)}else if(s.kind==='cloud'){s.tick-=dt;if(s.tick<=0){s.tick=.55;for(let m of monsters)if(dist(m,s)<s.r){if(time-(m.cloudWindow??-999)>.48){m.cloudWindow=time;m.cloudHits=0}if((m.cloudHits||0)<2){const strength=(m.cloudHits||0)===0?1:.45;m.cloudHits=(m.cloudHits||0)+1;hit(m,s.d*.58*strength,'dot')}m.poison=Math.max(m.poison,2)}}}else if(s.kind==='meteor'){if(s.life<=0){for(let m of monsters)if(dist(m,s)<s.r+m.r){let n=s.volley===undefined?0:(m.meteorVolley===s.volley?(m.meteorVolleyHits||0):0);hit(m,s.d*(s.volley===undefined?1:n===0?1:n===1?.30:.12));if(s.volley!==undefined){m.meteorVolley=s.volley;m.meteorVolleyHits=n+1}}putFx(s.x,s.y,'#ffb15c',Math.min(46,15+(s.lv||1)*3),240);fx.push({kind:'meteorImpact',x:s.x,y:s.y,c:'#ffb36a',r:s.r*.75,lv:s.lv||1,evo:!!s.evo,t:.43,max:.43});screenShake=5+(s.lv||1)*.45;if(s.poison)shots.push({kind:'cloud',x:s.x,y:s.y,r:s.r*.9,d:s.d*.28,life:5,tick:0});cinematicExtra('meteorImpact',s.lv||1,.47)}}else if(s.kind==='turret'){s.tick-=dt;if(s.tick<=0){s.tick=Math.max(.32,Math.max(.45,1.01-.07*(s.lv||1))*(s.evo?.88:1)*coolMult());let m=nearest(s,310);if(m){let a=Math.atan2(m.y-s.y,m.x-s.x);s.ang=a;s.fireFlash=.14;const cnt=1+amount();for(let j=0;j<cnt;j++){const side=(j-(cnt-1)/2)*13,sx=s.x-Math.sin(a)*side,sy=s.y+Math.cos(a)*side,aim=Math.atan2(m.y-sy,m.x-sx);fireShot(sx,sy,Math.cos(aim)*440,Math.sin(aim)*440,4,s.d,'turretBullet',2,{lv:s.lv||1,evo:!!s.evo})}if((s.lv||1)>=5&&Math.random()<.14)fx.push({kind:'muzzle',x:s.x+Math.cos(a)*30,y:s.y+Math.sin(a)*30,ang:a,lv:s.lv,evo:s.evo,t:.10,max:.10});if(time-(realSfxLast.turretShot??-999)>.27){realSfxLast.turretShot=time;cinematicPlay('gunCinematic',.14,1.18)}}}}else if(s.kind==='trap'){for(let m of monsters){if(m.hp<=0||dist(m,s)>s.r+m.r)continue;for(let e of monsters)if(e.hp>0&&dist(e,s)<s.r*(s.evo?1.45:1.8)){hit(e,s.d);e.ice=Math.max(e.ice,1.25)}putFx(s.x,s.y,'#ffb468',18);fx.push({kind:'trapBlast',x:s.x,y:s.y,r:s.r,lv:s.lv||1,evo:!!s.evo,c:'#ffd58b',t:.30,max:.30});s.life=-1;cinematicExtra('trapBlast',s.lv||1,.43);break}}else{if(s.kind==='enemy'){
  const oldX=s.x,oldY=s.y;
  s.x+=s.vx*dt;s.y+=s.vy*dt;
  // Second swept-path check is a guard even if this shot was spawned during the frame.
@@ -2071,7 +2085,7 @@ if(player.flashDash){
 }
 if(finalBossMode){const b=finalBossBounds();player.x=clamp(player.x,b.left+player.r,b.right-player.r);player.y=clamp(player.y,b.top+player.r,b.bottom-player.r)}else{player.x=clamp(player.x,WORLD.x0+WORLD_MARGIN+player.r,WORLD.x1-WORLD_MARGIN-player.r);player.y=clamp(player.y,WORLD.y0+WORLD_MARGIN+player.r,WORLD.y1-WORLD_MARGIN-player.r)}
 let regen=.2*plevel('regen')+.08*metaLv('regen');player.hp=Math.min(player.max,player.hp+regen*dt);
-if(!masterMode&&!finalBossMode){spawns-=dt;const interval=spawnWaveInterval(time);if(spawns<=0){spawns+=interval;const waveSize=time>=240?2:1;for(let j=0;j<waveSize;j++)spawnMob()}}for(const k of activeWeapons()){if(WEAPONS[k].type==='orbit')continue;timers[k]=(timers[k]??0)-dt;if(timers[k]<=0){attack(k);timers[k]=weaponCooldownSeconds(k)}}runFusions(dt);advanceOrbitCycles(dt);if(time<stopUntil){chronoTick-=dt;if(chronoTick<=0){chronoTick=.095;const m=nearest(player,335);if(m){const a=Math.atan2(m.y-player.y,m.x-player.x);hit(m,WEAPONS.chrono.d*(1+.18*(wlevel('chrono')-1)),'chrono');fx.push({kind:'chronoPunch',x:m.x+rand(-12,12),y:m.y+rand(-12,12),ang:a,lv:wlevel('chrono'),c:'#bd87ff',r:43,t:.22,max:.22});cinematicExtra('chronoPunch',wlevel('chrono'),.16)}}}orbitHit(dt);rebuildShotGrid();shotsTick(dt);monsterTick(dt);updateCrowdEscalation(dt);updateGroundHazards(dt);if(finalBossMode&&state==='playing')stepBossArena(dt);compactGems();for(let i=gems.length-1;i>=0;i--){let g=gems[i],d=dist(g,player),rr=70*(1+.2*plevel('magnet'))*(1+.15*metaLv('pickup'));if(d<rr){let a=Math.atan2(player.y-g.y,player.x-g.x),sp=180+(rr-d)*4;g.x+=Math.cos(a)*sp*dt;g.y+=Math.sin(a)*sp*dt}if(d<player.r+g.r+4){if(!masterMode){xp+=g.v*xpGainMult();xpPickupSfx()}gems.splice(i,1);if(!masterMode)checkXP();if(state!=='playing')break}}for(let i=fx.length-1;i>=0;i--){let f=fx[i];f.t!==undefined?f.t-=dt:f.l-=dt;if(f.vx){f.x+=f.vx*dt;f.y+=f.vy*dt}if((f.t!==undefined?f.t:f.l)<=0)fx.splice(i,1)}for(let i=damageNums.length-1;i>=0;i--){damageNums[i].t-=dt;damageNums[i].y-=dt*20;if(damageNums[i].t<=0)damageNums.splice(i,1)}if(state==='playing'&&!masterMode&&!finalBossMode&&treasure>0)openChest();if(state==='playing'&&!masterMode&&shouldHeal())healTrigger();if(state==='playing'&&!masterMode&&!finalBossMode&&pendingEvents>0)openEvent();if(adaptiveGraphics&&fx.length>230)fx.splice(0,fx.length-230);if(monsters.length>75&&damageNums.length>100)damageNums.splice(0,damageNums.length-100);updateHUD()}
+if(!masterMode&&!finalBossMode){spawns-=dt;const interval=spawnWaveInterval(time);if(spawns<=0){spawns+=interval;const waveSize=time>=240?2:1;for(let j=0;j<waveSize;j++)spawnMob()}}for(const k of activeWeapons()){if(WEAPONS[k].type==='orbit')continue;timers[k]=(timers[k]??0)-dt;if(timers[k]<=0){attack(k);timers[k]=weaponCooldownSeconds(k)}}runFusions(dt);advanceOrbitCycles(dt);if(time<stopUntil){chronoTick-=dt;if(chronoTick<=0){chronoTick=.12;const m=nearest(player,335);if(m){const a=Math.atan2(m.y-player.y,m.x-player.x);hit(m,WEAPONS.chrono.d*(1+.18*(wlevel('chrono')-1)),'chrono');fx.push({kind:'chronoPunch',x:m.x+rand(-12,12),y:m.y+rand(-12,12),ang:a,lv:wlevel('chrono'),c:'#bd87ff',r:43,t:.22,max:.22});cinematicExtra('chronoPunch',wlevel('chrono'),.16)}}}orbitHit(dt);rebuildShotGrid();shotsTick(dt);monsterTick(dt);updateCrowdEscalation(dt);updateGroundHazards(dt);if(finalBossMode&&state==='playing')stepBossArena(dt);compactGems();for(let i=gems.length-1;i>=0;i--){let g=gems[i],d=dist(g,player),rr=70*(1+.2*plevel('magnet'))*(1+.15*metaLv('pickup'));if(d<rr){let a=Math.atan2(player.y-g.y,player.x-g.x),sp=180+(rr-d)*4;g.x+=Math.cos(a)*sp*dt;g.y+=Math.sin(a)*sp*dt}if(d<player.r+g.r+4){if(!masterMode){xp+=g.v*xpGainMult();xpPickupSfx()}gems.splice(i,1);if(!masterMode)checkXP();if(state!=='playing')break}}for(let i=fx.length-1;i>=0;i--){let f=fx[i];f.t!==undefined?f.t-=dt:f.l-=dt;if(f.vx){f.x+=f.vx*dt;f.y+=f.vy*dt}if((f.t!==undefined?f.t:f.l)<=0)fx.splice(i,1)}for(let i=damageNums.length-1;i>=0;i--){damageNums[i].t-=dt;damageNums[i].y-=dt*20;if(damageNums[i].t<=0)damageNums.splice(i,1)}if(state==='playing'&&!masterMode&&!finalBossMode&&treasure>0)openChest();if(state==='playing'&&!masterMode&&shouldHeal())healTrigger();if(state==='playing'&&!masterMode&&!finalBossMode&&pendingEvents>0)openEvent();if(adaptiveGraphics&&fx.length>230)fx.splice(0,fx.length-230);if(monsters.length>75&&damageNums.length>100)damageNums.splice(0,damageNums.length-100);updateHUD()}
 const fillCircle=(x,y,r,c)=>{ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fillStyle=c;ctx.fill()};
 
 // v5.1: Everything below is VFX only (no damage or cooldown changes).
